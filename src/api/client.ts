@@ -1,18 +1,11 @@
-
-import axios, {
-  AxiosError,
-  AxiosInstance,
-  AxiosRequestConfig,
-  InternalAxiosRequestConfig,
-  create,
-} from "axios";
-import axiosRetry, { isNetworkError } from "axios-retry";
 import { useAuthStore } from "@/store/authStore";
+import { redactSensitiveData, safeLog } from "@/lib/security";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 const API_KEY = process.env.EXPO_PUBLIC_API_KEY ?? "";
 const IS_DEV = process.env.NODE_ENV === "development";
 const DEFAULT_TIMEOUT_MS = 15_000;
+const GET_RETRY_COUNT = 2;
 
 if (!BASE_URL && IS_DEV) {
   console.warn("[API] EXPO_PUBLIC_API_URL is not set.");
@@ -28,173 +21,58 @@ export type ApiErrorCode =
   | "SERVER_ERROR"
   | "UNKNOWN";
 
-export interface ApiError {
-  message: string;
-  code: ApiErrorCode;
+export class ApiError extends Error {
   status?: number;
-  serverErrorType?: string;
+  code: ApiErrorCode;
+  details?: unknown;
   retryable: boolean;
+
+  constructor({
+    message,
+    code,
+    status,
+    details,
+    retryable,
+  }: {
+    message: string;
+    code: ApiErrorCode;
+    status?: number;
+    details?: unknown;
+    retryable: boolean;
+  }) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.status = status;
+    this.details = details;
+    this.retryable = retryable;
+  }
 }
 
-/** Type-guard so callers can distinguish ApiError from unknown throws */
-export const isApiError = (err: unknown): err is ApiError =>
-  typeof err === "object" &&
-  err !== null &&
-  "code" in err &&
-  "retryable" in err;
+export const isApiError = (err: unknown): err is ApiError => err instanceof ApiError;
 
-const SENSITIVE_KEYS = new Set([
-  "bvn",
-  "nin",
-  "password",
-  "pin",
-  "otp",
-  "accountnumber",
-  "accountno",
-  "cardnumber",
-  "cvv",
-  "income",
-  "salary",
-  "token",
-  "accesstoken",
-  "refreshtoken",
-  "secret",
-]);
+export interface ApiRequestConfig {
+  headers?: Record<string, string>;
+  timeoutMs?: number;
+}
 
-const redact = (data: unknown, depth = 0): unknown => {
-  if (depth > 5 || data === null || data === undefined) return data;
-  if (typeof data !== "object") return data;
-  if (Array.isArray(data)) return data.map((item) => redact(item, depth + 1));
+type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-  return Object.fromEntries(
-    Object.entries(data as Record<string, unknown>).map(([key, value]) => {
-      const normalised = key.toLowerCase().replace(/[_-]/g, "");
-      if (SENSITIVE_KEYS.has(normalised)) return [key, "[REDACTED]"];
-      return [key, redact(value, depth + 1)];
-    })
-  );
-};
+interface RequestOptions extends ApiRequestConfig {
+  method: HttpMethod;
+  data?: unknown;
+  retriedAuth?: boolean;
+}
 
-// ---------------------------------------------------------------------------
-// Error normalisation
-// ---------------------------------------------------------------------------
+interface ServerErrorBody {
+  message?: string;
+  error?: { errorType?: string; message?: string };
+  details?: unknown;
+  data?: unknown;
+}
 
-const normaliseError = (error: AxiosError): ApiError => {
-  // Pure network failure (no response received)
-  if (!error.response) {
-    const isTimeout = error.code === "ECONNABORTED" || error.code === "ERR_CANCELED";
-    return {
-      message: isTimeout
-        ? "The request timed out. Please check your connection and try again."
-        : "Unable to reach the server. Please check your internet connection.",
-      code: isTimeout ? "TIMEOUT" : "NETWORK_ERROR",
-      retryable: true,
-    };
-  }
-
-  const { status, data } = error.response as {
-    status: number;
-    data?: { message?: string; error?: { errorType?: string; message?: string } };
-  };
-
-  const serverMessage =
-    data?.error?.message ?? data?.message ?? undefined;
-  const serverErrorType = data?.error?.errorType;
-
-  switch (true) {
-    case status === 401:
-      return {
-        message: "Your session has expired. Please log in again.",
-        code: "UNAUTHORIZED",
-        status,
-        serverErrorType,
-        retryable: false,
-      };
-    case status === 403:
-      return {
-        message: "You do not have permission to perform this action.",
-        code: "FORBIDDEN",
-        status,
-        serverErrorType,
-        retryable: false,
-      };
-    case status === 404:
-      return {
-        message: serverMessage ?? "The requested resource was not found.",
-        code: "NOT_FOUND",
-        status,
-        serverErrorType,
-        retryable: false,
-      };
-    case status === 422:
-      return {
-        message: serverMessage ?? "Please check your input and try again.",
-        code: "VALIDATION_ERROR",
-        status,
-        serverErrorType,
-        retryable: false,
-      };
-    case status >= 500:
-      return {
-        message:
-          serverMessage ?? "Something went wrong on our end. Please try again shortly.",
-        code: "SERVER_ERROR",
-        status,
-        serverErrorType,
-        retryable: true,
-      };
-    default:
-      return {
-        message: serverMessage ?? "An unexpected error occurred.",
-        code: "UNKNOWN",
-        status,
-        serverErrorType,
-        retryable: false,
-      };
-  }
-};
-
-
-const client: AxiosInstance = create({
-  baseURL: BASE_URL,
-  timeout: DEFAULT_TIMEOUT_MS,
-  headers: {
-    "Content-Type": "application/json",
-    "X-Api-Key": API_KEY,
-  },
-});
-
-
-axiosRetry(client, {
-  retries: 3,
-  retryDelay: (retryCount) => {
-    // Exponential back-off: 1 s, 2 s, 4 s
-    const delay = Math.pow(2, retryCount - 1) * 1_000;
-    const jitter = Math.random() * 400 - 200;
-    return delay + jitter;
-  },
-  retryCondition: (error: AxiosError) => {
-    if (isNetworkError(error)) return true;
-    const status = error.response?.status ?? 0;
-    return status >= 500 && status <= 599;
-  },
-  onRetry: (retryCount, error) => {
-    if (IS_DEV) {
-      console.warn(
-        `[API] Retry attempt ${retryCount} for ${error.config?.url ?? "unknown"} — ${error.message}`
-      );
-    }
-  },
-});
-
-
-const PUBLIC_ROUTES = [
-  "/login",
-  "/register",
-  "/refresh",
-  "/forgot-password",
-  "/reset-password",
-];
+const PUBLIC_ROUTES = ["/login", "/register", "/refresh", "/forgot-password", "/reset-password"];
+const AUTH_ERROR_TYPES = new Set(["ER002"]);
 
 let isRefreshing = false;
 let refreshQueue: ((token: string) => void)[] = [];
@@ -208,179 +86,314 @@ const drainRefreshQueue = (token: string) => {
   refreshQueue = [];
 };
 
-const isPublicRoute = (url?: string): boolean =>
-  PUBLIC_ROUTES.some((route) => url?.includes(route));
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const AUTH_ERROR_TYPES = new Set(["ER002"]);
-
-const isAuthError = (error: AxiosError): boolean => {
-  if (error.response?.status === 401) return true;
-  const data = error.response?.data as
-    | { success?: boolean; error?: { errorType?: string } }
-    | undefined;
-  return (
-    data?.success === false &&
-    !!data?.error?.errorType &&
-    AUTH_ERROR_TYPES.has(data.error.errorType)
-  );
+const retryDelay = (attempt: number) => {
+  const delay = Math.pow(2, attempt - 1) * 1_000;
+  const jitter = Math.random() * 400 - 200;
+  return delay + jitter;
 };
 
-// ---------------------------------------------------------------------------
-// Request interceptor — attach auth header
-// ---------------------------------------------------------------------------
+const buildUrl = (url: string) => {
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${BASE_URL}${url}`;
+};
 
-client.interceptors.request.use(
-  async (config: InternalAxiosRequestConfig) => {
-    const { accessToken } = useAuthStore.getState();
+const isPublicRoute = (url: string) => PUBLIC_ROUTES.some((route) => url.includes(route));
 
-    if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
-    }
-
-    if (IS_DEV) {
-      const safeData = config.data ? redact(JSON.parse(JSON.stringify(config.data))) : undefined;
-      console.log(
-        `→ [${config.method?.toUpperCase()}] ${config.url}`,
-        safeData ?? ""
-      );
-    }
-
-    return config;
-  },
-  (error: AxiosError) => {
-    if (IS_DEV) console.error("[API] Request setup error:", error.message);
-    return Promise.reject(normaliseError(error));
+const parseJsonSafely = async (response: Response): Promise<unknown> => {
+  const text = await response.text();
+  if (!text) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
   }
-);
+};
 
-// ---------------------------------------------------------------------------
-// Response interceptor — normalise errors + handle token refresh
-// ---------------------------------------------------------------------------
+const createApiErrorFromResponse = async (response: Response): Promise<ApiError> => {
+  const body = (await parseJsonSafely(response)) as ServerErrorBody | undefined;
+  return createApiErrorFromBody(response.status, body);
+};
 
-client.interceptors.response.use(
-  (response) => {
-    if (IS_DEV) {
-      console.log(`← [${response.status}] ${response.config.url}`);
+const createApiErrorFromBody = (status: number, body?: ServerErrorBody): ApiError => {
+  const serverMessage = body?.error?.message ?? body?.message;
+  const details = redactSensitiveData(body?.details ?? body?.error);
+
+  if (status === 401) {
+    return new ApiError({
+      message: "Your session has expired. Please log in again.",
+      code: "UNAUTHORIZED",
+      status,
+      details,
+      retryable: false,
+    });
+  }
+
+  if (status === 403) {
+    return new ApiError({
+      message: "You do not have permission to perform this action.",
+      code: "FORBIDDEN",
+      status,
+      details,
+      retryable: false,
+    });
+  }
+
+  if (status === 404) {
+    return new ApiError({
+      message: serverMessage ?? "The requested resource was not found.",
+      code: "NOT_FOUND",
+      status,
+      details,
+      retryable: false,
+    });
+  }
+
+  if (status >= 400 && status < 500) {
+    return new ApiError({
+      message: serverMessage ?? "Please check your input and try again.",
+      code: "VALIDATION_ERROR",
+      status,
+      details,
+      retryable: false,
+    });
+  }
+
+  if (status >= 500) {
+    return new ApiError({
+      message: serverMessage ?? "Something went wrong on our end. Please try again shortly.",
+      code: "SERVER_ERROR",
+      status,
+      details,
+      retryable: true,
+    });
+  }
+
+  return new ApiError({
+    message: serverMessage ?? "An unexpected error occurred.",
+    code: "UNKNOWN",
+    status,
+    details,
+    retryable: false,
+  });
+};
+
+const createNetworkError = (error: unknown): ApiError => {
+  if (error instanceof Error && error.name === "AbortError") {
+    return new ApiError({
+      message: "The request timed out. Please check your connection and try again.",
+      code: "TIMEOUT",
+      retryable: true,
+    });
+  }
+
+  return new ApiError({
+    message: "Unable to reach the server. Please check your internet connection.",
+    code: "NETWORK_ERROR",
+    retryable: true,
+    details: IS_DEV && error instanceof Error ? error.message : undefined,
+  });
+};
+
+const isAuthErrorBody = (body: unknown) => {
+  const data = body as { success?: boolean; error?: { errorType?: string } } | undefined;
+  return data?.success === false && !!data.error?.errorType && AUTH_ERROR_TYPES.has(data.error.errorType);
+};
+
+const refreshAccessToken = async () => {
+  const { refreshToken, setAccessToken, logOut } = useAuthStore.getState();
+
+  if (!refreshToken) {
+    logOut();
+    throw new ApiError({
+      message: "Your session has expired. Please log in again.",
+      code: "UNAUTHORIZED",
+      retryable: false,
+    });
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(buildUrl("/refresh"), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${refreshToken}`,
+        "Content-Type": "application/json",
+        "X-Api-Key": API_KEY,
+      },
+      signal: controller.signal,
+    });
+
+    const body = (await parseJsonSafely(response)) as
+      | { data?: { accessToken?: string | { token?: string } } }
+      | undefined;
+
+    if (!response.ok) {
+      throw createApiErrorFromBody(response.status, body as ServerErrorBody | undefined);
     }
-    return response;
-  },
-  async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & {
-      _retried?: boolean;
-    };
 
-    // Not an auth error — normalise and reject immediately
-    if (!isAuthError(error)) {
-      return Promise.reject(normaliseError(error));
-    }
+    const newToken =
+      typeof body?.data?.accessToken === "string"
+        ? body.data.accessToken
+        : body?.data?.accessToken?.token;
 
-    // Auth error on a public route — reject immediately (e.g. wrong password)
-    if (isPublicRoute(originalRequest?.url)) {
-      return Promise.reject(normaliseError(error));
-    }
-
-    // Prevent infinite loops on the refresh endpoint itself
-    if (originalRequest._retried) {
-      const { logOut } = useAuthStore.getState();
-      logOut?.();
-      return Promise.reject(normaliseError(error));
-    }
-
-    // Another refresh is already in-flight — queue this request
-    if (isRefreshing) {
-      return new Promise((resolve) => {
-        enqueueRefresh((token: string) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          resolve(client(originalRequest));
-        });
+    if (!newToken) {
+      throw new ApiError({
+        message: "Refresh response contained no access token.",
+        code: "UNKNOWN",
+        retryable: false,
       });
     }
 
-    // Mark as refreshing and prevent retry loops
-    isRefreshing = true;
-    originalRequest._retried = true;
-
-    const { refreshToken, setAccessToken, logOut } = useAuthStore.getState();
-
-    if (!refreshToken) {
-      isRefreshing = false;
-      logOut?.();
-      return Promise.reject(normaliseError(error));
-    }
-
-    try {
-      const refreshResponse = await axios.post(
-        `${BASE_URL}/refresh`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${refreshToken}`,
-            "X-Api-Key": API_KEY,
-            "Content-Type": "application/json",
-          },
-          timeout: DEFAULT_TIMEOUT_MS,
-        }
-      );
-
-      const newToken: string | undefined =
-        refreshResponse.data?.data?.accessToken?.token ??
-        refreshResponse.data?.data?.accessToken;
-
-      if (!newToken) throw new Error("Refresh response contained no access token.");
-
-      setAccessToken(newToken);
-      drainRefreshQueue(newToken);
-      isRefreshing = false;
-
-      originalRequest.headers.Authorization = `Bearer ${newToken}`;
-      return client(originalRequest);
-    } catch (refreshError) {
-      isRefreshing = false;
-      refreshQueue = []; // Clear queue — all pending requests will also fail
-      logOut?.();
-      return Promise.reject(
-        isApiError(refreshError)
-          ? refreshError
-          : normaliseError(refreshError as AxiosError)
-      );
-    }
+    setAccessToken(newToken);
+    return newToken;
+  } catch (error) {
+    if (isApiError(error)) throw error;
+    throw createNetworkError(error);
+  } finally {
+    clearTimeout(timer);
   }
-);
-
-// ---------------------------------------------------------------------------
-// Typed request helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Wrapper around the axios instance that always resolves to `T` or throws
- * a typed `ApiError`. Use these in your api/* modules rather than calling
- * `client` directly.
- */
-export const api = {
-  get: async <T>(url: string, config?: AxiosRequestConfig): Promise<T> => {
-    const response = await client.get<T>(url, config);
-    return response.data;
-  },
-
-  post: async <T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> => {
-    const response = await client.post<T>(url, data, config);
-    return response.data;
-  },
-
-  put: async <T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> => {
-    const response = await client.put<T>(url, data, config);
-    return response.data;
-  },
-
-  patch: async <T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> => {
-    const response = await client.patch<T>(url, data, config);
-    return response.data;
-  },
-
-  delete: async <T>(url: string, config?: AxiosRequestConfig): Promise<T> => {
-    const response = await client.delete<T>(url, config);
-    return response.data;
-  },
 };
 
-export default client;
+const withTimeout = async (url: string, init: RequestInit, timeoutMs: number) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const requestOnce = async <T>(url: string, options: RequestOptions): Promise<T> => {
+  const { accessToken } = useAuthStore.getState();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Api-Key": API_KEY,
+    ...options.headers,
+  };
+
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  const requestUrl = buildUrl(url);
+  const body = options.data === undefined ? undefined : JSON.stringify(options.data);
+
+  safeLog(`→ [${options.method}] ${url}`, redactSensitiveData(options.data));
+
+  let response: Response;
+  let parsedBody: unknown;
+
+  try {
+    response = await withTimeout(
+      requestUrl,
+      {
+        method: options.method,
+        headers,
+        body,
+      },
+      options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+    );
+    parsedBody = await parseJsonSafely(response);
+  } catch (error) {
+    throw createNetworkError(error);
+  }
+
+  safeLog(`← [${response.status}] ${url}`);
+
+  const authErrorFromBody = isAuthErrorBody(parsedBody);
+  const authErrorFromStatus = response.status === 401;
+  const shouldTryRefresh =
+    (authErrorFromStatus || authErrorFromBody) && !options.retriedAuth && !isPublicRoute(url);
+
+  if (shouldTryRefresh) {
+    if (isRefreshing) {
+      const token = await new Promise<string>((resolve) => {
+        enqueueRefresh(resolve);
+      });
+      return requestOnce<T>(url, {
+        ...options,
+        headers: { ...options.headers, Authorization: `Bearer ${token}` },
+        retriedAuth: true,
+      });
+    }
+
+    isRefreshing = true;
+    try {
+      const newToken = await refreshAccessToken();
+      drainRefreshQueue(newToken);
+      return requestOnce<T>(url, {
+        ...options,
+        headers: { ...options.headers, Authorization: `Bearer ${newToken}` },
+        retriedAuth: true,
+      });
+    } catch (error) {
+      refreshQueue = [];
+      useAuthStore.getState().logOut();
+      throw error;
+    } finally {
+      isRefreshing = false;
+    }
+  }
+
+  if (!response.ok) {
+    throw await createApiErrorFromResponse(
+      new Response(JSON.stringify(parsedBody), {
+        status: response.status,
+        statusText: response.statusText,
+      })
+    );
+  }
+
+  return parsedBody as T;
+};
+
+const shouldRetry = (method: HttpMethod, error: ApiError) =>
+  method === "GET" && error.retryable && (error.status === undefined || error.status >= 500);
+
+const request = async <T>(url: string, options: RequestOptions): Promise<T> => {
+  const maxAttempts = options.method === "GET" ? GET_RETRY_COUNT + 1 : 1;
+  let lastError: ApiError | undefined;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await requestOnce<T>(url, options);
+    } catch (error) {
+      const apiError = isApiError(error) ? error : createNetworkError(error);
+      lastError = apiError;
+
+      if (attempt >= maxAttempts || !shouldRetry(options.method, apiError)) {
+        throw apiError;
+      }
+
+      safeLog(`[API] Retry attempt ${attempt} for ${url} - ${apiError.message}`);
+      await wait(retryDelay(attempt));
+    }
+  }
+
+  throw lastError;
+};
+
+export const api = {
+  get: <T>(url: string, config?: ApiRequestConfig): Promise<T> =>
+    request<T>(url, { ...config, method: "GET" }),
+
+  post: <T>(url: string, data?: unknown, config?: ApiRequestConfig): Promise<T> =>
+    request<T>(url, { ...config, method: "POST", data }),
+
+  put: <T>(url: string, data?: unknown, config?: ApiRequestConfig): Promise<T> =>
+    request<T>(url, { ...config, method: "PUT", data }),
+
+  patch: <T>(url: string, data?: unknown, config?: ApiRequestConfig): Promise<T> =>
+    request<T>(url, { ...config, method: "PATCH", data }),
+
+  delete: <T>(url: string, config?: ApiRequestConfig): Promise<T> =>
+    request<T>(url, { ...config, method: "DELETE" }),
+};
+
+export default api;

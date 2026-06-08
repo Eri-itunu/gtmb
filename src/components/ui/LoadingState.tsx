@@ -1,4 +1,6 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import type { ReactNode } from "react";
+import { ScrollView, StatusBar, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, fontSize, radius, shadows, spacing } from "@/design-system";
 
 export interface LoadingStateProps {
@@ -24,21 +26,23 @@ export function LoadingState({ message = "Loading...", variant = "center" }: Loa
 
 function DashboardSkeleton() {
   return (
-    <ScrollView contentContainerStyle={styles.screen} contentInsetAdjustmentBehavior="automatic">
-      <View style={styles.tealHeader}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerCopy}>
-            <SkeletonBlock tone="dark" width={90} height={10} />
-            <SkeletonBlock tone="dark" width={190} height={18} />
+    <ScrollView style={styles.greenInsetScroll} contentContainerStyle={styles.screen} contentInsetAdjustmentBehavior="automatic">
+      <SkeletonHeader variant="dashboard">
+        <>
+          <View style={styles.headerRow}>
+            <View style={styles.headerCopy}>
+              <SkeletonBlock tone="dark" width={90} height={10} />
+              <SkeletonBlock tone="dark" width={190} height={18} />
+            </View>
+            <SkeletonBlock tone="dark" width={40} height={40} radiusValue={radius.full} />
           </View>
-          <SkeletonBlock tone="dark" width={40} height={40} radiusValue={radius.full} />
-        </View>
-        <View style={styles.tabRow}>
-          <SkeletonBlock tone="dark" width={92} height={12} />
-          <SkeletonBlock tone="dark" width={82} height={12} />
-          <SkeletonBlock tone="dark" width={86} height={12} />
-        </View>
-      </View>
+          <View style={styles.tabRow}>
+            <SkeletonBlock tone="dark" width={92} height={12} />
+            <SkeletonBlock tone="dark" width={82} height={12} />
+            <SkeletonBlock tone="dark" width={86} height={12} />
+          </View>
+        </>
+      </SkeletonHeader>
       <View style={styles.body}>
         <SkeletonBlock width="100%" height={48} />
         <View style={styles.chipRow}>
@@ -56,17 +60,19 @@ function DashboardSkeleton() {
 
 function ApplicationDetailSkeleton() {
   return (
-    <ScrollView contentContainerStyle={styles.screen} contentInsetAdjustmentBehavior="automatic">
-      <View style={styles.detailHeader}>
-        <View style={styles.headerRow}>
-          <SkeletonBlock tone="dark" width={36} height={36} radiusValue={radius.full} />
-          <View style={styles.headerCopy}>
-            <SkeletonBlock tone="dark" width={128} height={16} />
-            <SkeletonBlock tone="dark" width={106} height={10} />
+    <ScrollView style={styles.greenInsetScroll} contentContainerStyle={styles.screen} contentInsetAdjustmentBehavior="automatic">
+      <SkeletonHeader variant="detail">
+        <>
+          <View style={styles.headerRow}>
+            <SkeletonBlock tone="dark" width={36} height={36} radiusValue={radius.full} />
+            <View style={styles.headerCopy}>
+              <SkeletonBlock tone="dark" width={128} height={16} />
+              <SkeletonBlock tone="dark" width={106} height={10} />
+            </View>
           </View>
-        </View>
-        <SkeletonBlock tone="dark" width={116} height={30} radiusValue={radius.full} />
-      </View>
+          <SkeletonBlock tone="dark" width={116} height={30} radiusValue={radius.full} />
+        </>
+      </SkeletonHeader>
       <View style={styles.stepperShell}>
         <SkeletonBlock width="100%" height={52} />
       </View>
@@ -81,7 +87,7 @@ function ApplicationDetailSkeleton() {
 
 function RepaymentsSkeleton() {
   return (
-    <ScrollView contentContainerStyle={styles.body} contentInsetAdjustmentBehavior="automatic">
+    <ScrollView style={styles.greenInsetScroll} contentContainerStyle={styles.body} contentInsetAdjustmentBehavior="automatic">
       <View style={styles.pageTitleBlock}>
         <SkeletonBlock width={190} height={24} />
         <SkeletonBlock width="82%" height={14} />
@@ -94,7 +100,7 @@ function RepaymentsSkeleton() {
 
 function ProfileSkeleton() {
   return (
-    <ScrollView contentContainerStyle={styles.body} contentInsetAdjustmentBehavior="automatic">
+    <ScrollView style={styles.greenInsetScroll} contentContainerStyle={styles.body} contentInsetAdjustmentBehavior="automatic">
       <View style={styles.profileCard}>
         <SkeletonBlock width={76} height={76} radiusValue={radius.full} />
         <SkeletonBlock width={180} height={22} />
@@ -107,8 +113,8 @@ function ProfileSkeleton() {
 
 function FormSkeleton() {
   return (
-    <ScrollView contentContainerStyle={styles.screen} contentInsetAdjustmentBehavior="automatic">
-      <View style={styles.detailHeader}>
+    <ScrollView style={styles.greenInsetScroll} contentContainerStyle={styles.screen} contentInsetAdjustmentBehavior="automatic">
+      <SkeletonHeader variant="detail">
         <View style={styles.headerRow}>
           <SkeletonBlock tone="dark" width={36} height={36} radiusValue={radius.full} />
           <View style={styles.headerCopy}>
@@ -116,7 +122,7 @@ function FormSkeleton() {
             <SkeletonBlock tone="dark" width={82} height={10} />
           </View>
         </View>
-      </View>
+      </SkeletonHeader>
       <View style={styles.stepperShell}>
         <SkeletonBlock width="100%" height={52} />
       </View>
@@ -129,6 +135,18 @@ function FormSkeleton() {
         </View>
       </View>
     </ScrollView>
+  );
+}
+
+function SkeletonHeader({ children, variant }: { children: ReactNode; variant: "dashboard" | "detail" }) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={styles.skeletonHeader}>
+      <StatusBar backgroundColor={colors.appHeader} barStyle="light-content" translucent />
+      <View style={[styles.statusBarFill, { height: insets.top }]} />
+      <View style={[styles.skeletonHeaderContent, variant === "dashboard" ? styles.dashboardHeaderContent : styles.detailHeaderContent]}>{children}</View>
+    </View>
   );
 }
 
@@ -188,9 +206,13 @@ function SkeletonBlock({
 const styles = StyleSheet.create({
   container: { alignItems: "center", gap: spacing.md, justifyContent: "center", padding: spacing["3xl"] },
   message: { color: colors.textSecondary, fontSize: fontSize.md },
+  greenInsetScroll: { backgroundColor: colors.appHeader },
   screen: { backgroundColor: colors.background, flexGrow: 1 },
-  tealHeader: { backgroundColor: colors.teal[600], gap: spacing.lg, paddingBottom: spacing.lg, paddingHorizontal: spacing.xl, paddingTop: spacing["3xl"] },
-  detailHeader: { alignItems: "flex-start", backgroundColor: colors.teal[600], gap: spacing.lg, paddingBottom: spacing.xl, paddingHorizontal: spacing.xl, paddingTop: spacing["3xl"] },
+  skeletonHeader: { backgroundColor: colors.appHeader, overflow: "hidden" },
+  statusBarFill: { backgroundColor: colors.appHeader },
+  skeletonHeaderContent: { backgroundColor: colors.appHeader, paddingTop: spacing.lg },
+  dashboardHeaderContent: { gap: spacing.lg, paddingBottom: spacing.lg, paddingHorizontal: spacing.xl },
+  detailHeaderContent: { alignItems: "flex-start", gap: spacing.lg, paddingBottom: spacing.xl, paddingHorizontal: spacing.xl },
   headerRow: { alignItems: "center", flexDirection: "row", gap: spacing.md, justifyContent: "space-between" },
   headerCopy: { flex: 1, gap: spacing.sm },
   tabRow: { flexDirection: "row", gap: spacing.xl },

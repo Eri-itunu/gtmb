@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { colors, fontSize, palette } from "@/design-system";
+import { colors, palette } from "@/design-system";
 
 export default function TabLayout() {
   return (
@@ -24,14 +24,14 @@ export default function TabLayout() {
           name="apply"
           options={{
             title: "My Apps",
-            tabBarIcon: ({ color }) => <Ionicons color={color} name="add-circle" size={fontSize["3xl"]} />,
+            tabBarIcon: ({ color, size }) => <Ionicons color={color} name="folder-open-outline" size={size} />,
           }}
         />
         <Tabs.Screen
           name="repayments"
           options={{
             title: "Support",
-            tabBarIcon: ({ color, size }) => <Ionicons color={color} name="card" size={size} />,
+            tabBarIcon: ({ color, size }) => <Ionicons color={color} name="headset-outline" size={size} />,
           }}
         />
         <Tabs.Screen

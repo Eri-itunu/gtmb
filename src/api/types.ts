@@ -42,6 +42,7 @@ export interface TimelineEvent {
   label: string;
   description?: string;
   timestamp?: string;
+  timestampLabel?: string | null;
   status: "done" | "active" | "pending" | "error";
 }
 
@@ -53,4 +54,12 @@ export interface ApiResponse<T> {
 
 export interface PaginatedResponse<T> extends ApiResponse<T[]> {
   pagination: { page: number; limit: number; total: number; pages: number };
+}
+
+export interface MortgageSubmissionPayload {
+  mortgageType: Application["mortgageType"];
+  propertyAddress: string;
+  loanAmountKobo: number;
+  tenureMonths: number;
+  propertyType: string;
 }

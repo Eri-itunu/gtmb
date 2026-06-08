@@ -4,9 +4,10 @@ import { router } from "expo-router";
 import { Animated, LayoutChangeEvent, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ApplicationStatus } from "@/api/types";
+import { colors } from "@/design-system";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
-const HEADER_GREEN = "#0A5C45";
+const HEADER_GREEN = colors.appHeader;
 const WHITE = "#FFFFFF";
 const WHITE_70 = "rgba(255,255,255,0.70)";
 const WHITE_20 = "rgba(255,255,255,0.20)";

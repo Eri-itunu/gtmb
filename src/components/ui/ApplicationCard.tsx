@@ -28,8 +28,10 @@ export function ApplicationCard({
   updatedAt,
   onPress,
 }: ApplicationCardProps) {
+  const isSuccess = status === "approved" || status === "disbursed";
+
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.card, isSuccess && styles.successCard, pressed && styles.pressed]}>
       <View style={styles.topRow}>
         <Text numberOfLines={1} style={styles.title}>{mortgageType}</Text>
         <StatusBadge status={status} size="sm" />
@@ -60,11 +62,14 @@ export function ApplicationCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
     borderRadius: radius.lg,
     gap: spacing.md,
     padding: spacing.lg,
     ...shadows.md,
   },
+  successCard: { borderColor: colors.success.border },
   pressed: { opacity: 0.88 },
   topRow: { alignItems: "flex-start", flexDirection: "row", gap: spacing.md, justifyContent: "space-between" },
   title: { color: colors.textPrimary, flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.bold },

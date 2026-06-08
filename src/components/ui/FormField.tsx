@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import type { KeyboardTypeOptions } from "react-native";
+import { useState } from "react";
+import type { KeyboardTypeOptions, TextInputProps } from "react-native";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { colors, fontSize, fontWeight, radius, spacing } from "@/design-system";
 
@@ -20,6 +21,8 @@ export interface FormFieldProps {
   masked?: boolean;
   multiline?: boolean;
   numberOfLines?: number;
+  autoCapitalize?: TextInputProps["autoCapitalize"];
+  autoCorrect?: boolean;
 }
 
 export function FormField({
@@ -39,22 +42,30 @@ export function FormField({
   masked = false,
   multiline = false,
   numberOfLines,
+  autoCapitalize,
+  autoCorrect,
 }: FormFieldProps) {
+  const [isFocused, setIsFocused] = useState(false);
+
   return (
     <View style={styles.container}>
       <Text style={styles.label}>
         {label}
         {required ? <Text style={styles.required}> *</Text> : null}
       </Text>
-      <View style={[styles.inputShell, error && styles.inputShellError, !editable && styles.inputShellDisabled]}>
+      <View style={[styles.inputShell, isFocused && editable && styles.inputShellFocused, error && styles.inputShellError, !editable && styles.inputShellDisabled]}>
         {leftIcon ? <View style={styles.icon}>{leftIcon}</View> : null}
         <TextInput
           editable={editable}
+          autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
           keyboardType={keyboardType}
           maxLength={maxLength}
           multiline={multiline}
           numberOfLines={numberOfLines}
+          onBlur={() => setIsFocused(false)}
           onChangeText={onChangeText}
+          onFocus={() => setIsFocused(true)}
           placeholder={placeholder}
           placeholderTextColor={colors.textDisabled}
           secureTextEntry={secureTextEntry}
@@ -84,6 +95,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: spacing.md,
   },
+  inputShellFocused: { borderColor: colors.success.text },
   inputShellError: { borderColor: colors.error.text },
   inputShellDisabled: { backgroundColor: colors.gray[100] },
   input: { color: colors.textPrimary, flex: 1, fontSize: fontSize.md, minHeight: 44 },

@@ -5,7 +5,7 @@ import { colors, fontSize, fontWeight, radius, spacing } from "@/design-system";
 export interface ButtonProps {
   label: string;
   onPress: () => void;
-  variant?: "primary" | "secondary" | "ghost" | "danger" | "main" | "mainBorder";
+  variant?: "primary" | "secondary" | "ghost" | "danger" | "main" | "mainBorder" | "dangerBorder";
   size?: "sm" | "md" | "lg";
   loading?: boolean;
   disabled?: boolean;
@@ -39,7 +39,7 @@ export function Button({
         pressed && !isDisabled && styles.pressed,
       ]}
     >
-      {loading ? <ActivityIndicator color={variant === "secondary" || variant === "mainBorder" || variant === "ghost" ? colors.primary : colors.surface} /> : null}
+      {loading ? <ActivityIndicator color={variant === "dangerBorder" ? colors.error.text : variant === "secondary" || variant === "mainBorder" || variant === "ghost" ? colors.primary : colors.surface} /> : null}
       {!loading && leftIcon ? <View style={styles.icon}>{leftIcon}</View> : null}
       <Text style={[styles.label, labelStyles[variant]]}>{label}</Text>
     </Pressable>
@@ -61,6 +61,7 @@ const styles = StyleSheet.create({
   mainBorder: { backgroundColor: colors.surface, borderColor: colors.secondary },
   ghost: { backgroundColor: "transparent", borderColor: "transparent" },
   danger: { backgroundColor: colors.error.text, borderColor: colors.error.text },
+  dangerBorder: { backgroundColor: colors.error.bg, borderColor: colors.error.text },
   sm: { minHeight: 36, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   md: { minHeight: 44, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   lg: { minHeight: 52, paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
@@ -75,6 +76,8 @@ const styles = StyleSheet.create({
   mainLabel: { color: "#ffff" },
   mainBorderLabel: { color: colors.secondary },
   dangerLabel: { color: colors.surface },
+  dangerBorderLabel: { color: colors.error.text },
+  
 });
 
 const variantStyles = {
@@ -84,6 +87,7 @@ const variantStyles = {
   danger: styles.danger,
   main: styles.main,
   mainBorder: styles.mainBorder,
+  dangerBorder: styles.dangerBorder,
 };
 
 const labelStyles = {
@@ -93,4 +97,5 @@ const labelStyles = {
   danger: styles.dangerLabel,
   main: styles.mainLabel,
   mainBorder: styles.mainBorderLabel,
+  dangerBorder: styles.dangerBorderLabel,
 };

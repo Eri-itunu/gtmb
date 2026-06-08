@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
-import { StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AlertBanner } from "@/components/ui/AlertBanner";
 import { colors, spacing } from "@/design-system";
@@ -13,24 +13,23 @@ function RootChrome() {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.container}>
-      {isOffline ? (
-        <View style={[styles.banner, { paddingTop: insets.top + spacing.sm }]}>
-          <AlertBanner
-            variant="warning"
-            title="You are offline"
-            message="Some mortgage updates may be delayed until your connection returns."
-          />
-        </View>
-      ) : null}
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="application/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="application/new" options={{ headerShown: false }} />
-        <Stack.Screen name="applications/new" options={{ headerShown: false }} />
       </Stack>
-    </View>
+      {isOffline ? (
+        <View style={[styles.banner, { paddingTop: insets.top + spacing.sm }]}>
+          <AlertBanner
+            variant="warning"
+            title="You are offline"
+            message="You appear to be offline. Your draft is safe on this device."
+          />
+        </View>
+      ) : null}
+    </KeyboardAvoidingView>
   );
 }
 
@@ -59,5 +58,13 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  banner: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+  banner: {
+    left: 0,
+    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    position: "absolute",
+    right: 0,
+    top: 0,
+    zIndex: 20,
+  },
 });

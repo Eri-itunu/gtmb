@@ -29,6 +29,7 @@ export const palette = {
 export const colors = {
   primary: palette.amber[500],
   primaryDark: palette.amber[600],
+  appHeader: "#0A5C45",
   secondary: palette.secondary[400],
   background: palette.gray[50],
   surface: palette.white,

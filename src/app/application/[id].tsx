@@ -1,27 +1,38 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { AsyncBoundary } from "@/components/AsyncBoundary";
 import { ApplicationDetailView } from "@/components/mortgage/ApplicationDetailView";
+import { ApplicationDetailSkeleton } from "@/components/skeletons/ApplicationDetailSkeleton";
 import { AppHeader } from "@/components/ui/AppHeader";
-import { ErrorState } from "@/components/ui/ErrorState";
-import { LoadingState } from "@/components/ui/LoadingState";
 import { useApplication } from "@/hooks/useApplication";
 
 export default function ApplicationDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: application, isLoading, isError, refetch } = useApplication(id);
-
-  if (isLoading) return <LoadingState message="Loading application..." variant="applicationDetail" />;
-  if (isError || !application) return <ErrorState message="We could not load this application." onRetry={() => refetch()} />;
+  const query = useApplication(id);
 
   return (
-    <>
-      <AppHeader
-        title={application.applicationNumber}
-        headerSubtitle="Application Details"
-        status={application.status}
-        showBackButton
-        onBackPress={() => router.back()}
-      />
-      <ApplicationDetailView application={application} />
-    </>
+    <AsyncBoundary
+      query={{
+        data: query.data,
+        error: query.error,
+        isLoading: query.isLoading,
+        refetch: () => {
+          void query.refetch();
+        },
+      }}
+      skeleton={<ApplicationDetailSkeleton />}
+    >
+      {(application) => (
+        <>
+          <AppHeader
+            title={application.applicationNumber}
+            headerSubtitle="Application Details"
+            status={application.status}
+            showBackButton
+            onBackPress={() => router.back()}
+          />
+          <ApplicationDetailView application={application} />
+        </>
+      )}
+    </AsyncBoundary>
   );
 }

@@ -2,11 +2,11 @@ import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { FlatList, Pressable, StyleSheet, TextInput, View, Text } from "react-native";
+import { AsyncBoundary } from "@/components/AsyncBoundary";
+import { ApplicationsListSkeleton } from "@/components/skeletons/ApplicationsListSkeleton";
 import { AppHeader } from "@/components/ui/AppHeader";
 import { ApplicationCard } from "@/components/ui/ApplicationCard";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { ErrorState } from "@/components/ui/ErrorState";
-import { LoadingState } from "@/components/ui/LoadingState";
 import { colors, radius, shadows, spacing, fontSize, fontWeight, palette } from "@/design-system";
 import { useApplications } from "@/hooks/useApplications";
 import { useOnboardingStore } from "@/store/onboardingStore";
@@ -14,7 +14,6 @@ import { useUIStore } from "@/store/uiStore";
 import { ApplicationStatus } from "@/api/types";
 import { FILTER_OPTIONS } from "@/lib/constants";
 
-// ─── Tab definitions ──────────────────────────────────────────────────────────
 
 const TABS = [
   { key: "applications", label: "Applications" },
@@ -22,7 +21,6 @@ const TABS = [
   { key: "documents",    label: "Documents" },
 ];
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function DashboardScreen() {
   const userName      = useOnboardingStore((state) => state.userName);
@@ -31,9 +29,9 @@ export default function DashboardScreen() {
   const filterChip = useUIStore((state) => state.filterChip);
   const searchQuery = useUIStore((state) => state.searchQuery);
   const [activeTab, setActiveTab] = useState("applications");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
-  const { applications, isLoading, isError, refetch, isRefetching } =
-    useApplications();
+  const query = useApplications();
 
   const handleTabPress = (key: string) => {
     setActiveTab(key);
@@ -41,23 +39,9 @@ export default function DashboardScreen() {
     setFilterChip("all");
   };
 
-  if (isLoading) {
-    return <LoadingState message="Fetching your mortgage applications..." variant="dashboard" />;
-  }
-
-  if (isError) {
-    return (
-      <ErrorState
-        message="We could not load your applications."
-        onRetry={() => refetch()}
-      />
-    );
-  }
-
   return (
     <View style={styles.screen}>
-
-      {/* Green header with greeting + avatar + tabs all in one block */}
+      
       <AppHeader
         userName={userName}
         tabs={TABS}
@@ -66,73 +50,84 @@ export default function DashboardScreen() {
         onAvatarPress={() => router.push("/profile" as never)}
       />
 
-      {/* Tab content */}
+      
       {activeTab === "applications" && (
-        // <ApplicationsTab
-        //   applications={applications}
-        //   isRefetching={isRefetching}
-        //   onRefresh={refetch}
-        // />
-        <FlatList
-          ListHeaderComponent={
-            <View style={styles.header}>
-              
-              
-              <View style={styles.searchShell}>
-                <Ionicons color={colors.textDisabled} name="search" size={18} />
-                <TextInput
-                  onChangeText={setSearchQuery}
-                  placeholder="Search by property or applicant"
-                  placeholderTextColor={colors.textDisabled}
-                  style={styles.searchInput}
-                  value={searchQuery}
+        <AsyncBoundary
+          query={{
+            data: query.data,
+            error: query.error,
+            isLoading: query.isLoading,
+            refetch: () => {
+              void query.refetch();
+            },
+          }}
+          skeleton={<ApplicationsListSkeleton />}
+          empty={<EmptyApplications />}
+          isEmpty={(data) => data.applications.length === 0}
+        >
+          {() => (
+            <FlatList
+              ListHeaderComponent={
+                <View style={styles.header}>
+                  <View style={[styles.searchShell, isSearchFocused && styles.searchShellFocused]}>
+                    <Ionicons color={colors.textDisabled} name="search" size={18} />
+                    <TextInput
+                      onBlur={() => setIsSearchFocused(false)}
+                      onChangeText={setSearchQuery}
+                      onFocus={() => setIsSearchFocused(true)}
+                      placeholder="Search by property or applicant"
+                      placeholderTextColor={colors.textDisabled}
+                      style={styles.searchInput}
+                      value={searchQuery}
+                    />
+                  </View>
+                  <FlatList
+                    data={FILTER_OPTIONS}
+                    horizontal
+                    keyExtractor={(item) => item.value}
+                    renderItem={({ item }) => (
+                      <Pressable
+                        onPress={() => setFilterChip(item.value as ApplicationStatus | "all")}
+                        style={[styles.chip, filterChip === item.value && styles.chipActive]}
+                      >
+                        <Text style={[styles.chipText, filterChip === item.value && styles.chipTextActive]}>{item.label}</Text>
+                      </Pressable>
+                    )}
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.chipList}
+                  />
+                </View>
+              }
+              ListEmptyComponent={
+                <EmptyState
+                  action={{ label: "Start application", onPress: () => router.push("/application/new" as never) }}
+                  title="No applications found"
+                  message="Try a different filter or begin a new mortgage application."
                 />
-              </View>
-              <FlatList
-                data={FILTER_OPTIONS}
-                horizontal
-                keyExtractor={(item) => item.value}
-                renderItem={({ item }) => (
-                  <Pressable
-                    onPress={() => setFilterChip(item.value as ApplicationStatus | "all")}
-                    style={[styles.chip, filterChip === item.value && styles.chipActive]}
-                  >
-                    <Text style={[styles.chipText, filterChip === item.value && styles.chipTextActive]}>{item.label}</Text>
-                  </Pressable>
-                )}
-                showsHorizontalScrollIndicator={false}
-                style={styles.chipList}
-              />
-            </View>
-          }
-          ListEmptyComponent={
-            <EmptyState
-              action={{ label: "Start application", onPress: () => router.push("/applications/new" as never) }}
-              title="No applications found"
-              message="Try a different filter or begin a new mortgage application."
-            />
-          }
-          contentContainerStyle={styles.listContent}
-          data={applications}
-          keyExtractor={(item) => item.id}
-          onRefresh={refetch}
-          refreshing={isRefetching}
-          renderItem={({ item }) => (
-            <ApplicationCard
-              applicantName={item.applicantName}
-              applicationNumber={item.applicationNumber}
-              id={item.id}
-              loanAmount={item.loanAmountKobo}
-              mortgageType={item.mortgageType}
-              nudgeText={item.nudgeText}
-              onPress={() => router.push(`/application/${item.id}` as never)}
-              progressPercent={item.progressPercent}
-              propertyAddress={item.propertyAddress}
-              status={item.status}
-              updatedAt={item.updatedAt}
+              }
+              contentContainerStyle={styles.listContent}
+              data={query.applications}
+              keyExtractor={(item) => item.id}
+              onRefresh={query.refetch}
+              refreshing={query.isRefetching}
+              renderItem={({ item }) => (
+                <ApplicationCard
+                  applicantName={item.applicantName}
+                  applicationNumber={item.applicationNumber}
+                  id={item.id}
+                  loanAmount={item.loanAmountKobo}
+                  mortgageType={item.mortgageType}
+                  nudgeText={item.nudgeText}
+                  onPress={() => router.push(`/application/${item.id}` as never)}
+                  progressPercent={item.progressPercent}
+                  propertyAddress={item.propertyAddress}
+                  status={item.status}
+                  updatedAt={item.updatedAt}
+                />
+              )}
             />
           )}
-        />
+        </AsyncBoundary>
       )}
 
       {activeTab === "repayments" && (
@@ -155,7 +150,7 @@ export default function DashboardScreen() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Start new application"
-        onPress={() => router.push("/applications/new" as never)}
+        onPress={() => router.push("/application/new" as never)}
         style={styles.fab}
       >
         <Ionicons color={colors.surface} name="add" size={28} />
@@ -164,7 +159,14 @@ export default function DashboardScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+function EmptyApplications() {
+  return (
+    <EmptyState
+      action={{ label: "Start New Application", onPress: () => router.push("/application/new" as never) }}
+      title="No applications yet"
+    />
+  );
+}
 
 const styles = StyleSheet.create({
   screen: {
@@ -200,6 +202,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: spacing.md,
   },
+  searchShellFocused: { borderColor: colors.success.text },
   searchInput: { color: colors.textPrimary, flex: 1, fontSize: fontSize.md },
   chipList: { flexGrow: 0 },
   chip: {

@@ -1,5 +1,5 @@
-import { Redirect } from "expo-router";
+import { NewApplicationForm } from "@/components/mortgage/NewApplicationForm";
 
 export default function NewApplicationScreen() {
-  return <Redirect href="/applications/new" />;
+  return <NewApplicationForm />;
 }

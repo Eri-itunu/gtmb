@@ -1,43 +1,38 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { Application } from "@/api/types";
+import { toAppError } from "@/lib/appError";
 import { useApplicationsStore } from "@/store/applicationsStore";
 import { useUIStore } from "@/store/uiStore";
 
 const DEBOUNCE_MS = 300;
 const FETCH_DELAY_MS = 900;
-const REFRESH_DELAY_MS = 700;
+const EMPTY_APPLICATIONS: Application[] = [];
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const useApplications = () => {
   const filterChip = useUIStore((state) => state.filterChip);
   const searchQuery = useUIStore((state) => state.searchQuery);
   const sourceApplications = useApplicationsStore((state) => state.applications);
-  const [applications, setApplications] = useState<Application[]>([]);
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefetching, setIsRefetching] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setApplications(sourceApplications);
-      setIsLoading(false);
-    }, FETCH_DELAY_MS);
-
-    return () => clearTimeout(timer);
-  }, [sourceApplications]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const refetch = useCallback(() => {
-    setIsRefetching(true);
+  const query = useQuery({
+    queryKey: ["applications", sourceApplications.length, sourceApplications.map((application) => application.updatedAt).join("|")],
+    queryFn: async () => {
+      await delay(FETCH_DELAY_MS);
+      return sourceApplications;
+    },
+    staleTime: 30_000,
+    retry: 1,
+  });
 
-    setTimeout(() => {
-      setApplications(sourceApplications);
-      setIsRefetching(false);
-    }, REFRESH_DELAY_MS);
-  }, [sourceApplications]);
+  const applications = query.data ?? EMPTY_APPLICATIONS;
 
   const filteredApplications = useMemo(() => {
     const normalizedSearch = debouncedSearch.trim().toLowerCase();
@@ -63,12 +58,15 @@ export const useApplications = () => {
     return [...preferredApplications, ...filtered.filter((application) => !preferredIds.has(application.id))];
   }, [applications, debouncedSearch, filterChip]);
 
+  const data = query.data ? { applications: query.data } : undefined;
+
   return {
     applications: filteredApplications,
-    data: applications,
-    isLoading,
-    isError: false,
-    isRefetching,
-    refetch,
+    data,
+    rawApplications: query.data,
+    isLoading: query.isLoading,
+    error: query.error ? toAppError(query.error) : null,
+    isRefetching: query.isRefetching,
+    refetch: query.refetch,
   };
 };

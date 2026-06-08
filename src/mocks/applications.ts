@@ -3,6 +3,44 @@ import type { Application } from "@/api/types";
 const now = new Date("2026-06-06T08:30:00.000Z");
 const daysAgo = (days: number) => new Date(now.getTime() - days * 86_400_000).toISOString();
 
+const UNDER_REVIEW_TIMELINE = [
+  {
+    id: "submitted",
+    label: "Application submitted",
+    description: "All required documents uploaded",
+    timestampLabel: "15 May 2026 08:41 AM",
+    status: "done",
+  },
+  {
+    id: "credit-check",
+    label: "Credit check initiated",
+    description: "Bureau query sent",
+    timestampLabel: "15 May 2026 10:15 AM",
+    status: "done",
+  },
+  {
+    id: "valuation",
+    label: "Valuation in progress",
+    description: "Property valuation scheduled",
+    timestampLabel: "Expected: 20 May 2026",
+    status: "active",
+  },
+  {
+    id: "committee",
+    label: "Credit committee review",
+    description: "Pending valuation",
+    timestampLabel: "Estimated: 3 to 5 business days",
+    status: "pending",
+  },
+  {
+    id: "decision",
+    label: "Decision",
+    description: "Approval or rejection issued",
+    timestampLabel: null,
+    status: "pending",
+  },
+] as const;
+
 export const MOCK_APPLICATIONS: Application[] = [
   {
     id: "app-001",
@@ -15,17 +53,11 @@ export const MOCK_APPLICATIONS: Application[] = [
     tenureMonths: 180,
     annualInterestRate: 0.18,
     progressPercent: 45,
-    nudgeText: "Documents under review by your RM",
+    nudgeText: "Last updated 2 hours ago",
     createdAt: daysAgo(16),
     updatedAt: daysAgo(1),
     submittedAt: daysAgo(12),
-    timeline: [
-      { id: "draft", label: "Draft created", timestamp: daysAgo(16), status: "done" },
-      { id: "submitted", label: "Application submitted", timestamp: daysAgo(12), status: "done" },
-      { id: "review", label: "Documents under review", description: "Your relationship manager is validating uploaded documents.", timestamp: daysAgo(1), status: "active" },
-      { id: "decision", label: "Credit decision", status: "pending" },
-      { id: "disbursed", label: "Disbursement", status: "pending" },
-    ],
+    timeline: [...UNDER_REVIEW_TIMELINE],
   },
   {
     id: "app-002",
@@ -38,7 +70,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     tenureMonths: 120,
     annualInterestRate: 0.175,
     progressPercent: 20,
-    nudgeText: "2 sections incomplete",
+    nudgeText: "Continue where you left off",
     createdAt: daysAgo(3),
     updatedAt: daysAgo(0),
     timeline: [
@@ -121,17 +153,11 @@ export const MOCK_APPLICATIONS: Application[] = [
     tenureMonths: 180,
     annualInterestRate: 0.18,
     progressPercent: 60,
-    nudgeText: "Awaiting initial review",
+    nudgeText: "Last updated 2 hours ago",
     createdAt: daysAgo(8),
     updatedAt: daysAgo(2),
     submittedAt: daysAgo(2),
-    timeline: [
-      { id: "draft", label: "Draft completed", timestamp: daysAgo(8), status: "done" },
-      { id: "submitted", label: "Application submitted", timestamp: daysAgo(2), status: "done" },
-      { id: "review", label: "Initial review", status: "active" },
-      { id: "decision", label: "Credit decision", status: "pending" },
-      { id: "disbursed", label: "Disbursement", status: "pending" },
-    ],
+    timeline: [...UNDER_REVIEW_TIMELINE],
   },
   {
     id: "app-006",
@@ -144,17 +170,11 @@ export const MOCK_APPLICATIONS: Application[] = [
     tenureMonths: 156,
     annualInterestRate: 0.178,
     progressPercent: 55,
-    nudgeText: "Credit check initiated",
+    nudgeText: "Last updated 2 hours ago",
     createdAt: daysAgo(10),
     updatedAt: daysAgo(1),
     submittedAt: daysAgo(6),
-    timeline: [
-      { id: "draft", label: "Draft completed", timestamp: daysAgo(10), status: "done" },
-      { id: "submitted", label: "Application submitted", timestamp: daysAgo(6), status: "done" },
-      { id: "review", label: "Credit check initiated", description: "Bureau query sent for refinance assessment.", timestamp: daysAgo(1), status: "active" },
-      { id: "decision", label: "Credit decision", status: "pending" },
-      { id: "disbursed", label: "Disbursement", status: "pending" },
-    ],
+    timeline: [...UNDER_REVIEW_TIMELINE],
   },
 ];
 

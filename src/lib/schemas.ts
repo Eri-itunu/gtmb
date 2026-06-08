@@ -4,20 +4,6 @@ export const onboardingSchema = z.object({
   userName: z.string().trim().min(3, "Please enter your full name."),
 });
 
-export const propertySchema = z.object({
-  propertyAddress: z.string().trim().min(5, "Enter a valid property address."),
-  loanAmount: z.coerce.number().positive("Loan amount is required."),
-});
-
-export const personalDetailsSchema = z.object({
-  bvn: z.string().length(11, "BVN must be 11 digits."),
-  monthlyIncome: z.coerce.number().positive("Monthly income is required."),
-});
-
-export const mortgageApplicationSchema = propertySchema.merge(personalDetailsSchema).extend({
-  tenureMonths: z.coerce.number().min(12).max(360),
-});
-
 const NAIRA_REGEX = /^[\d,]+$/;
 
 export const newApplicationSchema = z.object({

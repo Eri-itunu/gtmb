@@ -66,16 +66,16 @@ function Node({ state, index }: { state: Step["state"]; index: number }) {
 }
 
 const styles = StyleSheet.create({
-  horizontal: { flexDirection: "row", justifyContent: "space-between", minHeight: 54, position: "relative", width: "100%" },
+  horizontal: { flexDirection: "row", justifyContent: "space-between", minHeight: 58, position: "relative", width: "100%" },
   horizontalRail: { backgroundColor: colors.border, height: 1, left: STEP_WIDTH / 2, position: "absolute", right: STEP_WIDTH / 2, top: NODE_SIZE / 2 },
   horizontalItem: { alignItems: "center", gap: spacing.sm, width: STEP_WIDTH },
-  horizontalLabel: { color: colors.textPrimary, fontSize: fontSize.xs, fontWeight: fontWeight.medium, textAlign: "center" },
+  horizontalLabel: { color: colors.textPrimary, fontSize: 10, fontWeight: fontWeight.medium, lineHeight: 12, textAlign: "center" },
   vertical: { gap: spacing.xs },
   verticalRow: { flexDirection: "row", gap: spacing.md },
   verticalRail: { alignItems: "center" },
   verticalLine: { backgroundColor: colors.border, flex: 1, minHeight: spacing["2xl"], width: 1 },
   verticalCopy: { flex: 1, gap: spacing.xs, paddingBottom: spacing.md },
-  label: { color: colors.textPrimary, fontSize: fontSize.md, fontWeight: fontWeight.semibold },
+  label: { color: colors.textPrimary, fontSize: 11, fontWeight: fontWeight.semibold, lineHeight: 14 },
   timestamp: { color: colors.textSecondary, fontSize: fontSize.sm },
   activeLabel: { color: colors.navy[700], fontWeight: fontWeight.bold },
   pendingLabel: { color: colors.textDisabled },
