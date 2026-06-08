@@ -6,15 +6,7 @@ import { colors } from "@/design-system";
 interface ScreenWrapperProps {
   children: React.ReactNode;
   backgroundColor?: string;
-  /**
-   * Which edges to apply safe area padding to.
-   * Default: top + bottom. Pass [] to opt out entirely (e.g. full-bleed hero screens).
-   */
   edges?: ("top" | "bottom" | "left" | "right")[];
-  /**
-   * Extra padding added on top of the safe area inset.
-   * Useful for screens with a custom header that needs breathing room.
-   */
   extraTopPadding?: number;
 }
 

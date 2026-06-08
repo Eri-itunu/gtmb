@@ -11,9 +11,11 @@ function RootChrome() {
   const { isConnected, isInternetReachable } = useNetworkStatus();
   const isOffline = !isConnected || !isInternetReachable;
   const insets = useSafeAreaInsets();
+  const RootView = Platform.OS === "ios" ? KeyboardAvoidingView : View;
+  const rootViewProps = Platform.OS === "ios" ? { behavior: "padding" as const } : {};
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
+    <RootView {...rootViewProps} style={styles.container}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -29,7 +31,7 @@ function RootChrome() {
           />
         </View>
       ) : null}
-    </KeyboardAvoidingView>
+    </RootView>
   );
 }
 

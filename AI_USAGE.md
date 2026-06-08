@@ -10,7 +10,7 @@ AI was used for initial planning and to scaffold the project structure. I define
 
 The agent initially suggested Axios for the API client. I rejected this for two reasons: native `fetch` is sufficient for this workload, and reducing third-party dependencies is a deliberate security posture for a financial application that handles sensitive user data. A recent Axios supply-chain vulnerability reinforced that decision. The final API client is built entirely on native `fetch` with typed error handling, timeout handling, retry logic, auth header injection, token refresh queuing, and sensitive-field log redaction.
 
-Similarly, the agent defaulted to Zustand for all state stores. I redirected this: sensitive data like access and refresh tokens belongs in `expo-secure-store`, which is keychain-backed and encrypted at rest. Zustand was retained for non-sensitive UI state, onboarding state, mock application data, and draft workflow state.
+Similarly, the agent defaulted to Zustand for all state stores. I redirected this: sensitive data like access and refresh tokens belongs in `expo-secure-store`, which is keychain-backed and encrypted at rest. Zustand was retained for non-sensitive UI state and volatile mock application state, while onboarding and mortgage draft persistence now use SecureStore because they can contain personal or property details. Refresh tokens are not retained in Zustand runtime state.
 
 ## Design System & UI Infrastructure
 

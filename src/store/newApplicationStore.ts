@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { storage } from "./persistentStorage";
+import { secureStorage } from "./secureStorage";
 
 export interface NewApplicationFormState {
   mortgageType: string;
@@ -26,9 +26,9 @@ const INITIAL: NewApplicationFormState = {
 };
 
 const zustandStorage = {
-  getItem: (name: string) => storage.getString(name),
-  setItem: (name: string, value: string) => storage.set(name, value),
-  removeItem: (name: string) => storage.remove(name),
+  getItem: (name: string) => secureStorage.getString(name),
+  setItem: (name: string, value: string) => secureStorage.set(name, value),
+  removeItem: (name: string) => secureStorage.remove(name),
 };
 
 export const useNewApplicationStore = create<NewApplicationStore>()(

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { storage } from "@/store/persistentStorage";
+import { secureStorage } from "@/store/secureStorage";
 
 export const useDraftForm = <T extends Record<string, unknown>>(applicationId: string, value?: T) => {
   const key = useMemo(() => `draft:${applicationId}`, [applicationId]);
@@ -8,14 +8,14 @@ export const useDraftForm = <T extends Record<string, unknown>>(applicationId: s
 
   const saveDraft = useCallback(
     (data: T) => {
-      storage.set(key, JSON.stringify(data)).catch(() => undefined);
+      secureStorage.set(key, JSON.stringify(data)).catch(() => undefined);
       setSavedDraft(data);
     },
     [key]
   );
 
   const clearDraft = useCallback(() => {
-    storage.remove(key).catch(() => undefined);
+    secureStorage.remove(key).catch(() => undefined);
     setSavedDraft(null);
   }, [key]);
 
@@ -23,7 +23,7 @@ export const useDraftForm = <T extends Record<string, unknown>>(applicationId: s
     let isMounted = true;
 
     const loadDraft = async () => {
-      const stored = await storage.getString(key);
+      const stored = await secureStorage.getString(key);
       if (!isMounted || !stored) return;
       setSavedDraft(JSON.parse(stored) as T);
     };

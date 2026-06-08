@@ -2,7 +2,9 @@ import { useAuthStore } from "@/store/authStore";
 import { redactSensitiveData, safeLog } from "@/lib/security";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
-const API_KEY = process.env.EXPO_PUBLIC_API_KEY ?? "";
+// Public Expo env vars are bundled into the app. This is only a client identifier,
+// not an authentication secret.
+const PUBLIC_API_CLIENT_KEY = process.env.EXPO_PUBLIC_API_KEY ?? "";
 const IS_DEV = process.env.NODE_ENV === "development";
 const DEFAULT_TIMEOUT_MS = 15_000;
 const GET_RETRY_COUNT = 2;
@@ -102,6 +104,12 @@ const buildUrl = (url: string) => {
 };
 
 const isPublicRoute = (url: string) => PUBLIC_ROUTES.some((route) => url.includes(route));
+
+const applyPublicClientKey = (headers: Record<string, string>) => {
+  if (PUBLIC_API_CLIENT_KEY) {
+    headers["X-Api-Key"] = PUBLIC_API_CLIENT_KEY;
+  }
+};
 
 const parseJsonSafely = async (response: Response): Promise<unknown> => {
   const text = await response.text();
@@ -204,10 +212,11 @@ const isAuthErrorBody = (body: unknown) => {
 };
 
 const refreshAccessToken = async () => {
-  const { refreshToken, setAccessToken, logOut } = useAuthStore.getState();
+  const { getRefreshToken, setAccessToken, logOut } = useAuthStore.getState();
+  const refreshToken = await getRefreshToken();
 
   if (!refreshToken) {
-    logOut();
+    await logOut();
     throw new ApiError({
       message: "Your session has expired. Please log in again.",
       code: "UNAUTHORIZED",
@@ -219,13 +228,15 @@ const refreshAccessToken = async () => {
   const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
   try {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${refreshToken}`,
+      "Content-Type": "application/json",
+    };
+    applyPublicClientKey(headers);
+
     const response = await fetch(buildUrl("/refresh"), {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${refreshToken}`,
-        "Content-Type": "application/json",
-        "X-Api-Key": API_KEY,
-      },
+      headers,
       signal: controller.signal,
     });
 
@@ -250,7 +261,7 @@ const refreshAccessToken = async () => {
       });
     }
 
-    setAccessToken(newToken);
+    await setAccessToken(newToken);
     return newToken;
   } catch (error) {
     if (isApiError(error)) throw error;
@@ -277,6 +288,7 @@ const requestOnce = async <T>(url: string, options: RequestOptions): Promise<T> 
     "Content-Type": "application/json",
     ...options.headers,
   };
+  applyPublicClientKey(headers);
 
   if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
@@ -335,7 +347,7 @@ const requestOnce = async <T>(url: string, options: RequestOptions): Promise<T> 
       });
     } catch (error) {
       refreshQueue = [];
-      useAuthStore.getState().logOut();
+      await useAuthStore.getState().logOut();
       throw error;
     } finally {
       isRefreshing = false;

@@ -1,9 +1,8 @@
-import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { useApplicationsStore } from "./applicationsStore";
 import { useNewApplicationStore } from "./newApplicationStore";
 import { useOnboardingStore } from "./onboardingStore";
-import { storage } from "./persistentStorage";
+import { secureStorage } from "./secureStorage";
 import { useUIStore } from "./uiStore";
 
 const ACCESS_TOKEN_KEY = "globaltrust.accessToken";
@@ -11,35 +10,39 @@ const REFRESH_TOKEN_KEY = "globaltrust.refreshToken";
 
 export interface AuthState {
   accessToken: string | null;
-  refreshToken: string | null;
-  setAccessToken: (token: string) => void;
-  setTokens: (access: string, refresh: string) => void;
-  logOut: () => void;
+  setAccessToken: (token: string) => Promise<void>;
+  setTokens: (access: string, refresh: string) => Promise<void>;
+  getRefreshToken: () => Promise<string | null>;
+  logOut: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()((set) => ({
   accessToken: null,
-  refreshToken: null,
 
-  setAccessToken: (token) => {
-    SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token).catch(() => undefined);
+  setAccessToken: async (token) => {
+    await secureStorage.set(ACCESS_TOKEN_KEY, token);
     set({ accessToken: token });
   },
 
-  setTokens: (access, refresh) => {
-    SecureStore.setItemAsync(ACCESS_TOKEN_KEY, access).catch(() => undefined);
-    SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refresh).catch(() => undefined);
-    set({ accessToken: access, refreshToken: refresh });
+  setTokens: async (access, refresh) => {
+    await Promise.all([
+      secureStorage.set(ACCESS_TOKEN_KEY, access),
+      secureStorage.set(REFRESH_TOKEN_KEY, refresh),
+    ]);
+    set({ accessToken: access });
   },
 
-  logOut: () => {
-    SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY).catch(() => undefined);
-    SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY).catch(() => undefined);
-    storage.clearAll().catch(() => undefined);
+  getRefreshToken: () => secureStorage.getString(REFRESH_TOKEN_KEY),
+
+  logOut: async () => {
+    await Promise.allSettled([
+      secureStorage.remove(ACCESS_TOKEN_KEY),
+      secureStorage.remove(REFRESH_TOKEN_KEY),
+    ]);
     useApplicationsStore.getState().resetApplications();
     useNewApplicationStore.getState().resetForm();
     useOnboardingStore.getState().resetOnboarding();
     useUIStore.getState().resetUI();
-    set({ accessToken: null, refreshToken: null });
+    set({ accessToken: null });
   },
 }));

@@ -18,8 +18,8 @@ export default function ProfileScreen() {
   const isLoading = false;
   const error = null;
 
-  const handleLogout = () => {
-    logOut();
+  const handleLogout = async () => {
+    await logOut();
     resetOnboarding();
     resetUI();
     router.replace("/" as never);

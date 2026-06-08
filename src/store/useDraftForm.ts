@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { storage } from "./persistentStorage";
+import { secureStorage } from "./secureStorage";
 
 const DRAFT_PREFIX = "draft:";
 
@@ -8,18 +8,18 @@ export const useDraftForm = (applicationId: string) => {
 
   const saveDraft = useCallback(
     (data: Record<string, unknown>) => {
-      storage.set(key, JSON.stringify(data)).catch(() => undefined);
+      secureStorage.set(key, JSON.stringify(data)).catch(() => undefined);
     },
     [key]
   );
 
   const loadDraft = useCallback(async () => {
-    const raw = await storage.getString(key);
+    const raw = await secureStorage.getString(key);
     return raw ? JSON.parse(raw) : null;
   }, [key]);
 
   const clearDraft = useCallback(async () => {
-    await storage.remove(key);
+    await secureStorage.remove(key);
   }, [key]);
 
   return { saveDraft, loadDraft, clearDraft };

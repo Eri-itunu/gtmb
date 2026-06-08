@@ -27,21 +27,22 @@ The app is built with Expo Router and should run in Expo Go. No custom native bu
 - `src/components`: reusable UI and mortgage workflow components.
 - `src/design-system`: colors, spacing, typography, radius, and shadow tokens.
 - `src/hooks`: data access and screen-facing hooks.
-- `src/store`: persisted Zustand stores for non-sensitive UI/onboarding/application draft state, plus an auth store that routes tokens through SecureStore.
+- `src/store`: volatile UI/application stores, SecureStore-backed onboarding and draft stores, plus an auth store that routes tokens through SecureStore.
 - `src/mocks`: mock application data used while no backend is connected.
 
 ## State Management
 
 - React Query was originally used for API-backed reads, while the current mock mode reads from `useApplicationsStore` so newly saved drafts immediately appear on the dashboard.
-- Zustand is used for non-sensitive UI state, onboarding state, persisted application data, and the new application draft.
-- Access and refresh tokens are routed through `expo-secure-store`, not ordinary local storage.
+- Zustand is used for non-sensitive UI state and volatile mock application data.
+- Onboarding and mortgage draft persistence use `expo-secure-store` because they can contain personal/property details.
+- Access and refresh tokens are written to `expo-secure-store`; refresh tokens are not retained in Zustand runtime state.
 - React Hook Form owns field validation state on the new application screen.
 - Zod owns validation rules and error messages.
 
 ## Tradeoffs
 
-- The mock application list is persisted locally so draft creation can be demonstrated without a backend.
-- Draft data is stored with AsyncStorage for Expo Go compatibility. Current draft fields are limited to loan and property details.
+- The mock application list is kept in memory so personal mortgage data is not persisted in unencrypted local storage.
+- Draft data is stored with SecureStore because current draft fields include property details.
 - The API client is production-shaped, but mock fallback is still used because the challenge does not provide a live backend.
 - Retry handling is split deliberately: transport-level GET retries for network and 5xx failures live in the native `fetch` API client, while TanStack Query is still used for query lifecycle behavior such as caching, stale/refetch handling, loading states, and screen-level retry triggers. TanStack Query could own more retry behavior in a backend-connected version, but centralizing HTTP retry rules in the API client keeps mutation safety and idempotency decisions closer to the request layer.
 
@@ -56,13 +57,13 @@ The app is built with Expo Router and should run in Expo Go. No custom native bu
 
 ## Draft Persistence
 
-- Non-sensitive mortgage draft values are persisted with AsyncStorage so Expo Go can run without a custom native build.
+- Mortgage draft values are persisted with SecureStore because property details are personal data.
 - Failed network/API work does not clear local form state.
 - Successful final submission should clear draft data; the helper path is prepared, but live backend submission is not yet wired into the UI.
 
 ## Sensitive Data Handling
 
-- Tokens are stored in SecureStore.
+- Tokens are stored in SecureStore, and refresh tokens are read from SecureStore only when needed for token refresh.
 - `redactSensitiveData` and `safeLog` prevent sensitive fields from appearing in development logs.
 - API error details are redacted before being exposed to UI code.
 - New application inputs are normalized before local persistence and draft creation. Dropdown fields use allowlisted values, monetary input accepts only digits/commas, and property address input strips unsafe control/symbol characters while rejecting common script and SQL-injection payload patterns.
