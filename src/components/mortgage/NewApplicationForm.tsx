@@ -13,6 +13,7 @@ import { FormField } from "@/components/ui/FormField";
 import { ProgressStepper, type Step } from "@/components/ui/ProgressStepper";
 import { colors, fontSize, fontWeight, spacing } from "@/design-system";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { formatMoneyInput, sanitizeAddressInput, sanitizeDigitsInput, sanitizeMoneyInput, sanitizeTextInput } from "@/lib/inputSanitization";
 import { newApplicationSchema, type NewApplicationFormValues } from "@/lib/schemas";
 import { useApplicationsStore } from "@/store/applicationsStore";
 import { useNewApplicationStore, type NewApplicationFormState } from "@/store/newApplicationStore";
@@ -20,7 +21,6 @@ import { useOnboardingStore } from "@/store/onboardingStore";
 import { formatNaira } from "@/lib/formatters";
 
 const MORTGAGE_TYPES = ["Home Purchase", "Refinance", "Equity Release"];
-const TENURES = ["5 yrs", "10 yrs", "15 yrs", "20 yrs", "25 yrs", "30 yrs"];
 const PROPERTY_TYPES = ["Residential"];
 const APPLICATION_STEPS: Step[] = [
   { id: "personal", label: "Personal Info", state: "done" },
@@ -31,7 +31,25 @@ const APPLICATION_STEPS: Step[] = [
 ];
 
 const parseLoanAmountKobo = (value: string) => Math.max(0, Number(value.replace(/,/g, "")) || 0) * 100;
-const parseTenureMonths = (value: string) => Math.max(0, Number(value.replace(" yrs", "")) || 0) * 12;
+const parseTenureMonths = (value: string) => Math.max(0, Number(sanitizeDigitsInput(value)) || 0) * 12;
+
+const sanitizeFormField = <K extends FieldPath<NewApplicationFormValues>>(
+  key: K,
+  value: FieldPathValue<NewApplicationFormValues, K>
+): FieldPathValue<NewApplicationFormValues, K> => {
+  if (typeof value !== "string") return value;
+
+  const sanitized =
+    key === "loanAmount"
+      ? formatMoneyInput(value)
+      : key === "tenure"
+        ? sanitizeDigitsInput(value)
+      : key === "propertyAddress"
+        ? sanitizeAddressInput(value)
+        : sanitizeTextInput(value, 40);
+
+  return sanitized as FieldPathValue<NewApplicationFormValues, K>;
+};
 
 const buildDraftApplication = (formValues: NewApplicationFormState, applicantName: string): Application => {
   const now = new Date().toISOString();
@@ -40,11 +58,11 @@ const buildDraftApplication = (formValues: NewApplicationFormState, applicantNam
   return {
     id: `draft-${timestamp}`,
     applicationNumber: `GTM-DRAFT-${String(timestamp).slice(-6)}`,
-    mortgageType: (formValues.mortgageType || "Home Purchase") as Application["mortgageType"],
+    mortgageType: (sanitizeTextInput(formValues.mortgageType, 40) || "Home Purchase") as Application["mortgageType"],
     status: "draft",
     applicantName,
-    propertyAddress: formValues.propertyAddress || "Address not provided",
-    loanAmountKobo: parseLoanAmountKobo(formValues.loanAmount),
+    propertyAddress: sanitizeAddressInput(formValues.propertyAddress) || "Address not provided",
+    loanAmountKobo: parseLoanAmountKobo(sanitizeMoneyInput(formValues.loanAmount)),
     tenureMonths: parseTenureMonths(formValues.tenure),
     annualInterestRate: 0.18,
     progressPercent: 20,
@@ -72,6 +90,16 @@ export function NewApplicationForm() {
   const { isConnected, isInternetReachable } = useNetworkStatus();
   const isOffline = !isConnected || !isInternetReachable;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sanitizedStoreValues = useMemo(
+    () => ({
+      mortgageType: sanitizeTextInput(store.mortgageType, 40),
+      loanAmount: formatMoneyInput(store.loanAmount),
+      tenure: sanitizeDigitsInput(store.tenure),
+      propertyType: sanitizeTextInput(store.propertyType, 40),
+      propertyAddress: sanitizeAddressInput(store.propertyAddress),
+    }),
+    [store.loanAmount, store.mortgageType, store.propertyAddress, store.propertyType, store.tenure]
+  );
 
   const {
     control,
@@ -81,17 +109,17 @@ export function NewApplicationForm() {
   } = useForm<NewApplicationFormValues>({
     resolver: zodResolver(newApplicationSchema),
     defaultValues: {
-      mortgageType: store.mortgageType,
-      loanAmount: store.loanAmount,
-      tenure: store.tenure,
-      propertyType: store.propertyType,
-      propertyAddress: store.propertyAddress,
+      mortgageType: sanitizedStoreValues.mortgageType,
+      loanAmount: sanitizedStoreValues.loanAmount,
+      tenure: sanitizedStoreValues.tenure,
+      propertyType: sanitizedStoreValues.propertyType,
+      propertyAddress: sanitizedStoreValues.propertyAddress,
     },
     mode: "onTouched",
   });
 
-  const parsedLoanAmountKobo = useMemo(() => parseLoanAmountKobo(store.loanAmount), [store.loanAmount]);
-  const parsedTenureMonths = useMemo(() => parseTenureMonths(store.tenure), [store.tenure]);
+  const parsedLoanAmountKobo = useMemo(() => parseLoanAmountKobo(sanitizedStoreValues.loanAmount), [sanitizedStoreValues.loanAmount]);
+  const parsedTenureMonths = useMemo(() => parseTenureMonths(sanitizedStoreValues.tenure), [sanitizedStoreValues.tenure]);
 
   const updateAutoSaveState = () => {
     setAutoSaveState("saving");
@@ -102,9 +130,10 @@ export function NewApplicationForm() {
   };
 
   const syncField = <K extends FieldPath<NewApplicationFormValues>>(key: K, value: FieldPathValue<NewApplicationFormValues, K>) => {
-    store.setField(key, value);
+    const sanitizedValue = sanitizeFormField(key, value);
+    store.setField(key, sanitizedValue);
     store.setField("lastSavedAt", new Date().toISOString());
-    setValue(key, value, { shouldValidate: true });
+    setValue(key, sanitizedValue, { shouldValidate: true });
     updateAutoSaveState();
   };
   const monthlyRepayment = useMemo(() => {
@@ -156,7 +185,23 @@ export function NewApplicationForm() {
                   onSelect={(value) => syncField("mortgageType", value)}
                   options={MORTGAGE_TYPES}
                   required
-                  value={store.mortgageType}
+                  value={sanitizedStoreValues.mortgageType}
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="loanAmount"
+              render={() => (
+                <FormField
+                  error={errors.loanAmount?.message}
+                  keyboardType="numeric"
+                  label="Loan Amount (₦)"
+                  onChangeText={(value) => syncField("loanAmount", value)}
+                  placeholder="e.g. 15,000,000"
+                  required
+                  value={sanitizedStoreValues.loanAmount}
                 />
               )}
             />
@@ -165,52 +210,40 @@ export function NewApplicationForm() {
               <View style={styles.loanAmountColumn}>
                 <Controller
                   control={control}
-                  name="loanAmount"
+                  name="propertyType"
                   render={() => (
-                    <FormField
-                      error={errors.loanAmount?.message}
-                      keyboardType="numeric"
-                      label="Loan Amount (₦)"
-                      onChangeText={(value) => syncField("loanAmount", value)}
-                      placeholder="e.g. 15,000,000"
+                    <DropdownField
+                      error={errors.propertyType?.message}
+                      label="Property Type"
+                      onSelect={(value) => syncField("propertyType", value)}
+                      options={PROPERTY_TYPES}
                       required
-                      value={store.loanAmount}
+                      value={sanitizedStoreValues.propertyType}
                     />
                   )}
                 />
+                
               </View>
               <View style={styles.tenureColumn}>
                 <Controller
                   control={control}
                   name="tenure"
                   render={() => (
-                    <DropdownField
+                    <FormField
                       error={errors.tenure?.message}
-                      label="Tenure"
-                      onSelect={(value) => syncField("tenure", value)}
-                      options={TENURES}
+                      label="Tenure (Years)"
+                      keyboardType="numeric"
+                      onChangeText={(value) => syncField("tenure", value)}
+                      placeholder="e.g. 20"
                       required
-                      value={store.tenure}
+                      value={sanitizedStoreValues.tenure}
                     />
                   )}
                 />
               </View>
             </View>
 
-            <Controller
-              control={control}
-              name="propertyType"
-              render={() => (
-                <DropdownField
-                  error={errors.propertyType?.message}
-                  label="Property Type"
-                  onSelect={(value) => syncField("propertyType", value)}
-                  options={PROPERTY_TYPES}
-                  required
-                  value={store.propertyType}
-                />
-              )}
-            />
+            
 
             <Controller
               control={control}
@@ -224,7 +257,7 @@ export function NewApplicationForm() {
                   onChangeText={(value) => syncField("propertyAddress", value)}
                   placeholder="Enter full property address"
                   required
-                  value={store.propertyAddress}
+                  value={sanitizedStoreValues.propertyAddress}
                 />
               )}
             />

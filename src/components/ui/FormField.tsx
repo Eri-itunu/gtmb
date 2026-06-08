@@ -51,7 +51,7 @@ export function FormField({
     <View style={styles.container}>
       <Text style={styles.label}>
         {label}
-        {required ? <Text style={styles.required}> *</Text> : null}
+        {/* {required ? <Text style={styles.required}> *</Text> : null} */}
       </Text>
       <View style={[styles.inputShell, isFocused && editable && styles.inputShellFocused, error && styles.inputShellError, !editable && styles.inputShellDisabled]}>
         {leftIcon ? <View style={styles.icon}>{leftIcon}</View> : null}

@@ -71,7 +71,9 @@ interface ServerErrorBody {
   data?: unknown;
 }
 
-const PUBLIC_ROUTES = ["/login", "/register", "/refresh", "/forgot-password", "/reset-password"];
+//For now these routes dont exist but I use them as an example
+const PUBLIC_ROUTES = ["/login", "/register"];
+//ER002 is also another example of assuming the backend error for auth is ER002
 const AUTH_ERROR_TYPES = new Set(["ER002"]);
 
 let isRefreshing = false;
@@ -273,7 +275,6 @@ const requestOnce = async <T>(url: string, options: RequestOptions): Promise<T> 
   const { accessToken } = useAuthStore.getState();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "X-Api-Key": API_KEY,
     ...options.headers,
   };
 

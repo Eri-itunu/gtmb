@@ -34,7 +34,7 @@ export const colors = {
   background: palette.gray[50],
   surface: palette.white,
   border: palette.gray[200],
-  textPrimary: palette.gray[900],
+  textPrimary: palette.gray[500],
   textSecondary: palette.gray[500],
   textDisabled: palette.gray[400],
   navy: palette.navy,

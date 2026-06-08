@@ -25,7 +25,7 @@ export function DropdownField({ label, value, options, onSelect, placeholder = "
     <View style={styles.container}>
       <Text style={styles.label}>
         {label}
-        {required ? <Text style={styles.required}> *</Text> : null}
+        {/* {required ? <Text style={styles.required}> *</Text> : null} */}
       </Text>
       <TouchableOpacity accessibilityRole="button" activeOpacity={0.78} onPress={() => setIsOpen(true)} style={[styles.field, error && styles.fieldError]}>
         <Text numberOfLines={1} style={[styles.value, !value && styles.placeholder]}>{value || placeholder}</Text>
